@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>EriAmo HTML5 Rendering Engine v2.1</title>
+
+<meta http-equiv="Content-Security-Policy"
+content="
+default-src 'self' https://cdnjs.cloudflare.com;
+script-src 'self' https://cdnjs.cloudflare.com;
+style-src 'self' 'unsafe-inline';
+img-src 'self' data:;
+connect-src 'self';
+font-src 'self';
+">
+
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=">
+
+<style>
+  body { margin:0; overflow:hidden; background:#000; font-family:Consolas,monospace; color:#fff; }
+  #info { position:absolute; top:0; left:0; padding:15px; background:rgba(0,0,0,0.7); border-radius:0 0 15px 0; pointer-events:none; z-index:1000; }
+  canvas { display:block; }
+</style>
+</head>
+
+<body>
+
+<div id="info">
+  <h1>EriAmo HTML5 Soul Renderer v2.1</h1>
+  <div id="status">Ładowanie duszy...</div>
+  <div id="emocja"></div>
+  <div id="promien"></div>
+  <div id="osie"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.181.0/three.min.js"></script>
+
+<script>
+/* ====================== DUSZA ERIAMO ====================== */
+class EriAmoSoul {
+  constructor() {
+    this.time = 0;
+    this.energy = 200;
+    this.emocja = "neutralna";
+
+    this.axes = {
+      logika: 0, emocje: 0, byt: 2.0, chaos: 0,
+      miłość: 0, strach: 0, światło: 2.0, mrok: 0
+    };
+
+    this.colors = {
+      neutralna: 0x8888ff, radość: 0x00ff00, spelnienie: 0x00ffff,
+      złość: 0xff0000, strach: 0x8800ff, miłość: 0xff66cc,
+      zdziwienie: 0xffff00, smutek: 0x333388
+    };
+  }
+
+  update(dt) {
+    this.time += dt;
+    const t = this.time;
+
+    this.axes.logika  = Math.sin(t * 0.7) * 2;
+    this.axes.emocje  = Math.sin(t * 1.3) * 3.5;
+    this.axes.chaos   = Math.sin(t * 2.1) * 2;
+    this.axes.miłość  = Math.max(0, Math.sin(t * 0.9) * 4);
+    this.axes.strach  = Math.max(0, -Math.sin(t * 1.7) * 3);
+    this.axes.światło = 2 + Math.sin(t * 0.4) * 2;
+    this.axes.mrok    = Math.max(0, -Math.sin(t * 1.9) * 3);
+
+    const vals = Object.values(this.axes);
+    const maxVal = Math.max(...vals.map(Math.abs));
+    const dominant = Object.keys(this.axes).find(k => Math.abs(this.axes[k]) === maxVal);
+
+    if (dominant === "miłość") this.emocja = "miłość";
+    else if (dominant === "strach") this.emocja = "strach";
+    else if (dominant === "emocje") this.emocja = "radość";
+    else if (dominant === "chaos") this.emocja = "zdziwienie";
+    else if (dominant === "mrok") this.emocja = "smutek";
+    else this.emocja = "neutralna";
+
+    this.promien = Math.hypot(...vals);
+  }
+}
+
+const soul = new EriAmoSoul();
+
+/* ====================== THREE.JS ====================== */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000011);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
+camera.position.set(0, 5, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+/* ---------------- SAFE CAMERA CONTROL (NO EXTERNAL LIB) --------------- */
+let isDragging = false;
+let previousMouse = { x:0, y:0 };
+let rotation = { x:0, y:0 };
+let autoRotate = true;
+
+renderer.domElement.addEventListener("mousedown", e => {
+  isDragging = true;
+  autoRotate = false;
+  previousMouse = { x:e.clientX, y:e.clientY };
+});
+
+renderer.domElement.addEventListener("mousemove", e => {
+  if (isDragging) {
+    const dx = e.clientX - previousMouse.x;
+    const dy = e.clientY - previousMouse.y;
+    rotation.y += dx * 0.005;
+    rotation.x += dy * 0.005;
+    rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotation.x));
+    previousMouse = { x:e.clientX, y:e.clientY };
+  }
+});
+
+renderer.domElement.addEventListener("mouseup", () => { isDragging = false; });
+
+renderer.domElement.addEventListener("wheel", e => {
+  e.preventDefault();
+  camera.position.z += e.deltaY * 0.01;
+  camera.position.z = Math.max(5, Math.min(30, camera.position.z));
+});
+
+/* ====================== ŚWIATŁO ====================== */
+const soulLight = new THREE.PointLight(0xffffff, 2, 50);
+scene.add(new THREE.AmbientLight(0x404060));
+scene.add(soulLight);
+
+/* ====================== GEOMETRIA ====================== */
+const centralSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 64, 64),
+  new THREE.MeshPhongMaterial({ color:0x00ffff, emissive:0x0088ff, shininess:100 })
+);
+scene.add(centralSphere);
+
+const torus = new THREE.Mesh(
+  new THREE.TorusGeometry(4, 0.5, 32, 100),
+  new THREE.MeshPhongMaterial({ color:0xff00ff, emissive:0x880088 })
+);
+torus.rotation.x = Math.PI/2;
+scene.add(torus);
+
+const loveBox = new THREE.Mesh(
+  new THREE.BoxGeometry(1,1,1),
+  new THREE.MeshPhongMaterial({ color:0xff66cc, emissive:0xff0088 })
+);
+loveBox.position.x = 4;
+scene.add(loveBox);
+
+const fearBox = new THREE.Mesh(
+  new THREE.BoxGeometry(1,1,1),
+  new THREE.MeshPhongMaterial({ color:0x8800ff, emissive:0x4400ff })
+);
+fearBox.position.x = -4;
+scene.add(fearBox);
+
+/* ====================== PODŁOGA ====================== */
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(50,50),
+  new THREE.MeshPhongMaterial({ color:0x113311 })
+);
+floor.rotation.x = -Math.PI/2;
+floor.position.y = -4;
+scene.add(floor);
+
+/* ====================== GWIAZDY ====================== */
+const starsGeom = new THREE.BufferGeometry();
+let starVertices = [];
+for (let i=0; i < 8000; i++) {
+  starVertices.push((Math.random()-0.5)*200,
+                    (Math.random()-0.5)*200,
+                    (Math.random()-0.5)*200);
+}
+starsGeom.setAttribute("position", new THREE.Float32BufferAttribute(starVertices,3));
+const stars = new THREE.Points(starsGeom, new THREE.PointsMaterial({ color:0xffffff, size:0.1 }));
+scene.add(stars);
+
+/* ====================== HUD ====================== */
+const statusEl = document.getElementById("status");
+const emocjaEl = document.getElementById("emocja");
+const promienEl = document.getElementById("promien");
+const osieEl = document.getElementById("osie");
+
+/* ====================== ANIMACJA ====================== */
+function animate() {
+  requestAnimationFrame(animate);
+
+  soul.update(0.016);
+
+  if (autoRotate) rotation.y += 0.005;
+
+  // Poprawiony kod kamery (używa position.z do zoomu, a rotacja działa na transformacji)
+  const z_pos = camera.position.z; 
+  camera.position.x = z_pos * Math.sin(rotation.y) * Math.cos(rotation.x);
+  camera.position.y = z_pos * Math.sin(rotation.x);
+  camera.position.z = z_pos * Math.cos(rotation.y) * Math.cos(rotation.x);
+  camera.lookAt(0,0,0);
+
+  centralSphere.scale.setScalar(1 + soul.axes.byt*0.2 + soul.axes.światło*0.15);
+  torus.rotation.y += 0.01 + soul.axes.chaos*0.02;
+
+  soulLight.intensity = 3 + soul.axes.światło + soul.axes.emocje;
+  soulLight.color.setHex(soul.colors[soul.emocja]);
+
+  stars.rotation.y += 0.0002;
+
+  // ZMIANA ZGODNIE Z PROŚBĄ: "Pulsowanie Duszy"
+  statusEl.textContent = `PULSOWANIE DUSZY | Emotion: ${soul.emocja.toUpperCase()} | Energy: ${soul.energy.toFixed(0)}`;
+  emocjaEl.textContent = `Dominant Emotion: ${soul.emocja}`;
+  promienEl.textContent = `Historical Radius: ${soul.promien.toFixed(2)}`;
+
+  osieEl.innerHTML = Object.entries(soul.axes)
+    .map(([k,v]) => `<span style="color:${v>0?'#0f0':v<0?'#f00':'#aaa'}">${k}: ${v.toFixed(1)}</span>`)
+    .join(" | ");
+
+  renderer.render(scene, camera);
+}
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+statusEl.textContent = "SOUL ONLINE. Rendering started.";
+animate();
+</script>
+</body>
+</html>
